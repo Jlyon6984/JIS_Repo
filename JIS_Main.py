@@ -23,10 +23,24 @@ def Hashing(user_input):
     # This section of the function makes use of the Bcrypt algorithm via the Bcrypt Library to hash user
     # input The result of this hash is also reported back to the user.
     print("Hashing with Bcrypt")
-    Bcrypt_Hash = bcrypt.hashpw(user_input.encode(), bcrypt.gensalt())
+    Bcrypt_Hash = bcrypt.hashpw(user_input.encode(), bcrypt.gensalt()).decode()
     print("Result: ",Bcrypt_Hash)
 
-    return 0
+    return MD5_Hash,SHA256_Hash,Bcrypt_Hash
+
+def File_Write(MD5,SHA,Bcrypt):
+    file = open("Passwords.txt","w")
+    list = []
+
+    list.append(MD5 + "\n")
+
+    list.append(SHA + "\n")
+
+    list.append(Bcrypt + "\n")
+
+    file.writelines(list)
+    file.close()
+    print("Hashes Saved to File!")
 
 
 
@@ -37,7 +51,10 @@ def main():
 
 
     print("Hashing of Password will now commence!\n")
-    Hashing(user_input)
+    MD5_Hash, SHA256_Hash, Bcrypt_Hash = Hashing(user_input)
+
+    print("The Hashes of the password will now be saved to a file!")
+    File_Write(SHA256_Hash,MD5_Hash,Bcrypt_Hash)
 
     return 0
 
