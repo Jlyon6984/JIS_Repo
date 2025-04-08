@@ -2,6 +2,7 @@
 # Author: Jacob Lyon
 # Project: User Password hashing and cracking via John the Ripper.
 
+#Libraries being utilized by Project
 import bcrypt
 import hashlib
 import matplotlib
@@ -10,7 +11,7 @@ import subprocess
 import time
 
 
-
+# Helper function that takes in the user input and hashes using the MD5,SHA-256 and Bcrypt algorithms
 def Hashing(user_input):
     # This section of the function makes use of the MD5 algorithm via hashlib to hash user input
     # The result of this hash is also reported back to the user.
@@ -35,8 +36,8 @@ def Hashing(user_input):
 
 
 
-#Helper function that writes the three hashed results to a .txt file
-#File will serve as input into John the Ripper
+#Helper function that writes the three hashed results into three unique text files
+#One for Bcrypt, one for MD5 and, one for SHA-256
 def File_Write(MD5,SHA,Bcrypt):
     md5_file = "md5_hashes.txt"
     sha_file = "sha256_hashes.txt"
@@ -60,45 +61,79 @@ def File_Write(MD5,SHA,Bcrypt):
 
 
 def Run_JtR(File_of_Hash, Hash_Format, Wordlist, timeout=30):
-    print("Attemping a crack on", Hash_Format)
-    start_time = time.time()
+    print(f"\nStarting Wordlist + Incremental attack on {Hash_Format}")
+    total_start = time.time()
+    cracked = False
 
+    # Step 1: Wordlist attack
     try:
-        subprocess.run(["john", f"--wordlist={Wordlist}", f"--format={Hash_Format}",
-                        File_of_Hash], check = True, timeout = timeout)
+        print(" Running Wordlist attack")
+        subprocess.run(["john", f"--wordlist={Wordlist}", f"--format={Hash_Format}", File_of_Hash],
+                       check=True, timeout=timeout // 2)
+        # Check if it succeeded
+        result = subprocess.run(["john", "--show", f"--format={Hash_Format}", File_of_Hash],
+                                capture_output=True, text=True)
+        if any(':' in line for line in result.stdout.strip().splitlines()):
+            cracked_phase = True
     except subprocess.TimeoutExpired:
-        print("John ran longer than {timeout} seconds")
+        print("Wordlist attack timed out.")
+    except subprocess.CalledProcessError:
+        print("Error during wordlist attack.")
 
-    except subprocess.CalledProcessError as e:
-        print("Error Running JtR")
+    # Step 2: Incremental only if not cracked already
+    if not cracked:
+        try:
+            print("Running Incremental attacks")
+            subprocess.run(["john", "--incremental", f"--format={Hash_Format}", File_of_Hash],
+                           check=True, timeout=timeout // 2)
+            result = subprocess.run(["john", "--show", f"--format={Hash_Format}", File_of_Hash],
+                                    capture_output=True, text=True)
+            if any(':' in line for line in result.stdout.strip().splitlines()):
+                cracked_phase = "Incremental"
+        except subprocess.TimeoutExpired:
+            print("Incremental attack timed out.")
+        except subprocess.CalledProcessError:
+            print("Error during incremental attack.")
+
+    total_end = time.time()
+    total_time = total_end - total_start
+
+    return total_time
 
 
-def JtR_results(File_of_Hash,Format):
+def JtR_results(File_of_Hash,Format,Time):
     result = subprocess.run(
         ["john", "--show",f"--format={Format}", File_of_Hash],
         capture_output=True,
         text=True
     )
-    print(result)
 
-    cracked_output = result.stdout.strip().splitlines()
+    lines = result.stdout.strip().splitlines()
 
-    # Check if any line contains the question mark (?)
-    cracked = any('?' in line for line in cracked_output)
+    cracked_passwords = []
 
+    for line in lines:
+        # Skip summary lines like "1 password cracked, 0 left"
+        if not line or ':' not in line:
+            continue
 
-    if cracked:
-        print("Cracked: True")
-        # Extract and print the cracked password from the line (before the space and ?)
-        cracked_password = next(line for line in cracked_output if '?' in line).split()[0]
-        print("Cracked Password:", cracked_password)
+        parts = line.split(':', 1)
+        if len(parts) == 2:
+            password = parts[1].strip()
+            cracked_passwords.append(password)
+
+    if cracked_passwords:
+        print("\nCracked: True")
+        print("Time to Crack: ", round(Time, 2), "Seconds")
+        for pwd in cracked_passwords:
+            print("Cracked Password:", pwd)
+
     else:
-        print("Cracked: False")
-
+        print("\nCracked: False")
 
 
 def main():
-    print("Welcome to the Password Cracker! Please Input a Password-String: ")
+    print("Welcome to the Password Crack Attempt Tool! Please Input a Password-String: ")
     user_input = input()
 
 
@@ -110,19 +145,14 @@ def main():
 
     wordlist = "/Users/jakelyon/Desktop/rockyou.txt"
 
-    Run_JtR(md5_file, "raw-md5", wordlist, timeout=30)
-    JtR_results(md5_file,"raw-md5")
+    md5_time= Run_JtR(md5_file, "raw-md5", wordlist, timeout=30)
+    JtR_results(md5_file,"raw-md5",md5_time)
 
-    #Run_JtR(sha_file, "raw-sha256", wordlist, timeout=30)
+    sha256_time = Run_JtR(sha_file, "raw-sha256", wordlist, timeout=30)
+    JtR_results(sha_file,"raw-sha256",sha256_time)
 
-    #Run_JtR(bcrypt_file, "bcrypt", wordlist, timeout=30)s
-
-
-
-
-
-
-
+    bcrypt_time = Run_JtR(bcrypt_file, "bcrypt", wordlist, timeout=30)
+    JtR_results(bcrypt_file,"bcrypt",bcrypt_time)
 
 
 
