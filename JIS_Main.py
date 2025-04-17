@@ -1,6 +1,17 @@
 # Welcome to My JIS main!
 # Author: Jacob Lyon
 # Project: User Password hashing and cracking via John the Ripper.
+from matplotlib import pyplot as plt
+
+# Global dictionary to store performance metrics
+performance_metrics = {
+    "RAW-MD5-WL": {"g_s": 0, "p_s": 0, "c_s": 0},
+    "RAW-MD5-I": {"g_s": 0, "p_s": 0, "c_s": 0},
+    "RAW-SHA256-WL": {"g_s": 0, "p_s": 0, "c_s": 0},
+    "RAW-SHA256-I": {"g_s": 0, "p_s": 0, "c_s": 0},
+    "BCRYPT-WL": {"g_s": 0, "p_s": 0, "c_s": 0},
+    "BCRYPT-I": {"g_s": 0, "p_s": 0, "c_s": 0}
+}
 
 #Libraries being utilized by Project
 import bcrypt
@@ -9,6 +20,15 @@ import matplotlib
 import os
 import subprocess
 import time
+import re
+import numpy as np
+
+
+
+def store_metrics(attack_type, g_s, p_s, c_s):
+    performance_metrics[attack_type]["g_s"] = g_s
+    performance_metrics[attack_type]["p_s"] = p_s
+    performance_metrics[attack_type]["c_s"] = c_s
 
 
 # Helper function that takes in the user input and hashes using the MD5,SHA-256 and Bcrypt algorithms
@@ -32,8 +52,6 @@ def Hashing(user_input):
     print("Result: ",Bcrypt_Hash)
 
     return MD5_Hash,SHA256_Hash,Bcrypt_Hash
-
-
 
 
 #Helper function that writes the three hashed results into three unique text files
@@ -61,49 +79,98 @@ def File_Write(MD5,SHA,Bcrypt):
     return md5_file, sha_file, bcrypt_file
 
 
+
+
+
+
+
 #helper functions that runs John the Ripper for the various hashing algorithms
 
-def Run_JtR(File_of_Hash, Hash_Format, Wordlist, timeout=30):
-
-    #
+def Run_JtR_wordlist(File_of_Hash, Hash_Format, Wordlist,run_time):
     print(f"\nStarting crack on {Hash_Format}")
     total_start = time.time()
     cracked = False
 
-    # Step 1: Wordlist attack
-    #Makes use of subproccess library to run JtR From within the script
     try:
-        print(" Running Wordlist attack")
-        subprocess.run(["john", f"--wordlist={Wordlist}", f"--format={Hash_Format}", File_of_Hash],
-                       check=True, timeout=timeout // 2)
-        # Check if it succeeded
-        result = subprocess.run(["john", "--show", f"--format={Hash_Format}", File_of_Hash],
-                                capture_output=True, text=True)
-        if any(':' in line for line in result.stdout.strip().splitlines()):
-            cracked = True
+        print("Running Wordlist attack")
+        # Redirect stdout to a file
+        with open("jtr_output.txt", "w") as outfile:
+            subprocess.run(
+                ["john", f"--format={Hash_Format}",f"--max-run-time={run_time}", f"--wordlist={Wordlist}",File_of_Hash],
+                stdout=outfile,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+
+        # Read the output file
+        with open("jtr_output.txt", "r") as f:
+            output = f.read()
+
+            print(output)  # Debugging output, if necessary
+
+
+
+            # Extract performance metrics (e.g., guesses per second, passwords per second)
+            metrics_line = next((line for line in output.splitlines() if "g/s" in line), None)
+            attack_type = f"{Hash_Format.upper()}-WL"
+            if metrics_line:
+                metrics = parse_metrics_line(metrics_line,attack_type)
+                print("Wordlist Metrics:")
+                print(metrics)
+
+
+
     except subprocess.TimeoutExpired:
         print("Wordlist attack timed out.")
     except subprocess.CalledProcessError:
         print("Error during wordlist attack.")
 
-    # Step 2: Incremental only if not cracked already
-    if not cracked:
-        try:
-            print("Running Incremental attacks")
-            subprocess.run(["john", "--incremental", f"--format={Hash_Format}", File_of_Hash],
-                           check=True, timeout=timeout // 2)
-            result = subprocess.run(["john", "--show", f"--format={Hash_Format}", File_of_Hash],
-                                    capture_output=True, text=True)
-        except subprocess.TimeoutExpired:
-            print("Incremental attack timed out.")
-        except subprocess.CalledProcessError:
-            print("Error during incremental attack.")
+    total_end = time.time()
+    total_time = total_end - total_start
+    return total_time
+
+
+def Run_JtR_Incremental(File_of_Hash, Hash_Format,run_time):
+    print(f"\nStarting crack on {Hash_Format}")
+    total_start = time.time()
+    cracked = False
+
+    try:
+        print("Running Incremental attack")
+        # Redirect stdout to a file
+        with open("jtr_output.txt", "w") as outfile:
+            subprocess.run(
+                ["john", f"--incremental",f"--max-run-time={run_time}", f"--format={Hash_Format}", File_of_Hash],
+
+                stdout=outfile,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+
+        # Read the output file
+        with open("jtr_output.txt", "r") as f:
+            output = f.read()
+
+            print(output)  # Debugging output, if necessary
+
+
+            # Extract performance metrics (e.g., guesses per second, passwords per second)
+            metrics_line = next((line for line in output.splitlines() if "g/s" in line), None)
+            attack_type = f"{Hash_Format.upper()}-I"
+            if metrics_line:
+                metrics = parse_metrics_line(metrics_line,attack_type)
+                print("Incremental Metrics:")
+                print(metrics)
+
+
+    except subprocess.TimeoutExpired:
+        print("Incremental attack timed out.")
+    except subprocess.CalledProcessError:
+        print("Error during wordlist attack.")
 
     total_end = time.time()
     total_time = total_end - total_start
-
     return total_time
-
 #Results Helper functions, pulls in data from JtR as well as timing from script to report back to User
 def JtR_results(File_of_Hash,Format,Time):
 
@@ -113,6 +180,7 @@ def JtR_results(File_of_Hash,Format,Time):
         capture_output=True,
         text=True
     )
+
     #Strips and stores password data for ease of reporting
     lines = result.stdout.strip().splitlines()
 
@@ -137,12 +205,89 @@ def JtR_results(File_of_Hash,Format,Time):
     else:
         print("\nCracked: False")
 
+
+def clear_john_pot():
+
+# Clears the john.pot file to reset previously cracked passwords.
+
+    john_pot_path = os.path.expanduser("~/.john/john.pot")  # Default location
+    try:
+        with open(john_pot_path, "w") as f:
+            f.truncate(0)  # Clears file contents
+        print(" john.pot has been cleared.")
+    except FileNotFoundError:
+        print("'️ john.pot file not found—nothing to clear.")
+    except Exception as e:
+        print(f"Error clearing john.pot: {e}")
+
+
+
+def parse_metrics_line(metrics_line,attack_type):
+    match = re.search(r"(\d+\.?\d*[KMG]?)g/s\s+(\d+\.?\d*[KMG]?)p/s\s+(\d+\.?\d*[KMG]?)c/s", metrics_line,
+                      re.IGNORECASE)
+    if match:
+        g_s, p_s, c_s = match.groups()
+        store_metrics(attack_type, g_s, p_s, c_s)
+        return (
+            parse_speed(g_s),
+            parse_speed(p_s),
+            parse_speed(c_s)
+        )
+    return (0.0, 0.0, 0.0)
+
+def parse_speed(value):
+    multipliers = {'K': 1_000, 'M': 1_000_000, 'G': 1_000_000_000}
+    if value[-1] in multipliers:
+        try:
+            return float(value[:-1]) * multipliers[value[-1]]
+        except ValueError:
+            return 0.0
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
+
+
+def plot_metrics():
+    hash_types = ["RAW-MD5", "RAW-SHA256", "BCRYPT"]
+    attack_types = ["WL", "I"]
+    attack_labels = ["Wordlist", "Incremental"]
+    metrics = ["p_s", "c_s"]
+    metric_labels = ["Passwords/sec", "Candidates/sec"]
+    bar_width = 0.25
+
+    for hash_type in hash_types:
+        fig, ax = plt.subplots()
+        index = np.arange(len(attack_types))  # Position for each attack type
+
+        for i, metric in enumerate(metrics):
+            # Collect data for this metric across both attacks
+            values = [
+                performance_metrics.get(f"{hash_type}-{atk}", {}).get(metric, 0)
+                for atk in attack_types
+            ]
+            # Position each group slightly offset
+            bar_positions = index + (i - 1) * bar_width
+            ax.bar(bar_positions, values, width=bar_width, label=metric_labels[i])
+
+        ax.set_xticks(index)
+        ax.set_xticklabels(attack_labels)
+        ax.set_title(f"Performance Metrics for {hash_type}")
+        ax.set_ylabel("Rate")
+        ax.legend()
+        ax.grid(axis="y")
+        plt.tight_layout()
+        plt.show()
+
 #Main Driving Function for the software
 def main():
 
    #Takes in User input
     print("Welcome to the Password Crack Attempt Tool! Please Input a Password-String: ")
     user_input = input()
+
+    print("enter time to attempt crack (in seconds)")
+    run_time = input()
 
 #Run Hashing helper function to hash into three different algorithms
     print("Hashing of Password will now commence!\n")
@@ -156,16 +301,38 @@ def main():
     wordlist = "/Users/jakelyon/Desktop/rockyou.txt"
 
     #Runs various helper fuctions to run JtR sessions for MD5,SHA-256, and Bcrypt and reports backs the results.
-    md5_time= Run_JtR(md5_file, "raw-md5", wordlist, timeout=30)
-    JtR_results(md5_file,"raw-md5",md5_time)
 
-    sha256_time = Run_JtR(sha_file, "raw-sha256", wordlist, timeout=30)
-    JtR_results(sha_file,"raw-sha256",sha256_time)
+    md5_time_WL= Run_JtR_wordlist(md5_file, "raw-md5", wordlist,run_time)
+    JtR_results(md5_file,"raw-md5",md5_time_WL)
 
-    bcrypt_time = Run_JtR(bcrypt_file, "bcrypt", wordlist, timeout=30)
-    JtR_results(bcrypt_file,"bcrypt",bcrypt_time)
+    clear_john_pot()
+
+    md5_time_I= Run_JtR_Incremental(md5_file,"raw-md5",run_time)
+    JtR_results(md5_file,"raw-md5",md5_time_I)
 
 
+    sha256_time_WL = Run_JtR_wordlist(sha_file, "raw-sha256", wordlist,run_time)
+    JtR_results(sha_file,"raw-sha256",sha256_time_WL)
 
+    clear_john_pot()
+
+    sha256_time_I = Run_JtR_Incremental(sha_file, "raw-sha256",run_time)
+    JtR_results(sha_file,"raw-sha256",sha256_time_I)
+
+    bcrypt_time_WL = Run_JtR_wordlist(bcrypt_file, "bcrypt", wordlist,run_time)
+    JtR_results(bcrypt_file,"bcrypt",bcrypt_time_WL)
+
+    clear_john_pot()
+
+    bcrypt_time_I = Run_JtR_Incremental(bcrypt_file, "bcrypt",run_time)
+    JtR_results(bcrypt_file,"bcrypt",bcrypt_time_I)
+
+    clear_john_pot()
+
+
+    for attack_type, metrics in performance_metrics.items():
+        print(f"{attack_type}: {metrics['g_s']} g/s, {metrics['p_s']} p/s, {metrics['c_s']} c/s")
+
+    plot_metrics()
 if __name__ == "__main__":
     main()
