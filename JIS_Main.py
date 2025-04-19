@@ -3,6 +3,7 @@
 # Project: User Password hashing and cracking via John the Ripper.
 from matplotlib import pyplot as plt
 
+
 # Global dictionary to store performance metrics
 performance_metrics = {
     "RAW-MD5-WL": {"g_s": 0, "p_s": 0, "c_s": 0},
@@ -12,18 +13,23 @@ performance_metrics = {
     "BCRYPT-WL": {"g_s": 0, "p_s": 0, "c_s": 0},
     "BCRYPT-I": {"g_s": 0, "p_s": 0, "c_s": 0}
 }
+summary_results = []
+
+
+
 
 #Libraries being utilized by Project
 import bcrypt
 import hashlib
-import matplotlib
 import os
 import subprocess
 import time
 import re
 import numpy as np
+from matplotlib import pyplot as plt
 
-
+wordlist = "/Users/jakelyon/Desktop/rockyou.txt"
+JOHN_POT_PATH = os.path.expanduser("~/.john/john.pot")
 
 def store_metrics(attack_type, g_s, p_s, c_s):
     performance_metrics[attack_type]["g_s"] = g_s
@@ -32,7 +38,7 @@ def store_metrics(attack_type, g_s, p_s, c_s):
 
 
 # Helper function that takes in the user input and hashes using the MD5,SHA-256 and Bcrypt algorithms
-def Hashing(user_input):
+def hashing(user_input):
     # This section of the function makes use of the MD5 algorithm via hashlib to hash user input
     # The result of this hash is also reported back to the user.
     print("Hashing with MD5")
@@ -89,7 +95,6 @@ def File_Write(MD5,SHA,Bcrypt):
 def Run_JtR_wordlist(File_of_Hash, Hash_Format, Wordlist,run_time):
     print(f"\nStarting crack on {Hash_Format}")
     total_start = time.time()
-    cracked = False
 
     try:
         print("Running Wordlist attack")
@@ -133,7 +138,6 @@ def Run_JtR_wordlist(File_of_Hash, Hash_Format, Wordlist,run_time):
 def Run_JtR_Incremental(File_of_Hash, Hash_Format,run_time):
     print(f"\nStarting crack on {Hash_Format}")
     total_start = time.time()
-    cracked = False
 
     try:
         print("Running Incremental attack")
@@ -172,47 +176,53 @@ def Run_JtR_Incremental(File_of_Hash, Hash_Format,run_time):
     total_time = total_end - total_start
     return total_time
 #Results Helper functions, pulls in data from JtR as well as timing from script to report back to User
-def JtR_results(File_of_Hash,Format,Time):
+def JtR_results(File_of_Hash,Format,Time,attack_label):
 
-    #Pulls Data from JtE
     result = subprocess.run(
-        ["john", "--show",f"--format={Format}", File_of_Hash],
+        ["john", "--show", f"--format={Format}", File_of_Hash],
         capture_output=True,
         text=True
     )
 
-    #Strips and stores password data for ease of reporting
     lines = result.stdout.strip().splitlines()
-
     cracked_passwords = []
 
     for line in lines:
-        # Skip summary lines like "1 password cracked, 0 left"
         if not line or ':' not in line:
             continue
-
         parts = line.split(':', 1)
         if len(parts) == 2:
             password = parts[1].strip()
             cracked_passwords.append(password)
-#If a password has been cracked, this if reports back the conditional, the time and the password
-    if cracked_passwords:
+
+    cracked = bool(cracked_passwords)
+    if cracked:
         print("\nCracked: True")
         print("Time to Crack: ", round(Time, 2), "Seconds")
         for pwd in cracked_passwords:
             print("Cracked Password:", pwd)
-#Reports back if password was not cracked
     else:
         print("\nCracked: False")
+
+    # Store the result
+    summary_results.append({
+        "Hash": Format.upper(),
+        "Attack": attack_label,
+        "Cracked": cracked,
+        "Password": ", ".join(cracked_passwords) if cracked_passwords else "-",
+        "Time (s)": round(Time, 2),
+        "g/s": performance_metrics[f"{Format.upper()}-{attack_label}"].get("g_s", 0),
+        "p/s": performance_metrics[f"{Format.upper()}-{attack_label}"].get("p_s", 0),
+        "c/s": performance_metrics[f"{Format.upper()}-{attack_label}"].get("c_s", 0)
+    })
 
 
 def clear_john_pot():
 
 # Clears the john.pot file to reset previously cracked passwords.
 
-    john_pot_path = os.path.expanduser("~/.john/john.pot")  # Default location
     try:
-        with open(john_pot_path, "w") as f:
+        with open(JOHN_POT_PATH, "w") as f:
             f.truncate(0)  # Clears file contents
         print(" john.pot has been cleared.")
     except FileNotFoundError:
@@ -279,60 +289,73 @@ def plot_metrics():
         plt.tight_layout()
         plt.show()
 
+def plot_summary_table():
+    column_labels = ["Hash", "Attack", "Cracked", "Password", "Time (s)", "g/s", "p/s", "c/s"]
+    cell_data = []
+
+    for entry in summary_results:
+        row = [
+            entry["Hash"],
+            "Wordlist" if entry["Attack"] == "WL" else "Incremental",
+            "Yes" if entry["Cracked"] else "No",
+            entry["Password"],
+            entry["Time (s)"],
+            entry["g/s"],
+            entry["p/s"],
+            entry["c/s"]
+        ]
+        cell_data.append(row)
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.axis('tight')
+    ax.axis('off')
+    table = ax.table(cellText=cell_data, colLabels=column_labels, loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+    plt.title("Password Cracking Summary", fontsize=14)
+    plt.tight_layout()
+    plt.show()
+
+
+def run_all_attacks(hash_file, hash_format, wordlist, run_time):
+    for attack_type in ["WL", "I"]:
+        if attack_type == "WL":
+            time_taken = Run_JtR_wordlist(hash_file, hash_format, wordlist, run_time)
+        else:
+            time_taken = Run_JtR_Incremental(hash_file, hash_format, run_time)
+        JtR_results(hash_file, hash_format, time_taken, attack_type)
+        clear_john_pot()
+
 #Main Driving Function for the software
 def main():
+    user_input = input("Enter password string: ").strip()
+    run_time = int(input("Enter time to attempt crack (in seconds): "))
 
-   #Takes in User input
-    print("Welcome to the Password Crack Attempt Tool! Please Input a Password-String: ")
-    user_input = input()
-
-    print("enter time to attempt crack (in seconds)")
-    run_time = input()
-
+    if not user_input:
+        print("Password cannot be empty.")
+        return
 #Run Hashing helper function to hash into three different algorithms
     print("Hashing of Password will now commence!\n")
-    MD5_Hash, SHA256_Hash, Bcrypt_Hash = Hashing(user_input)
+    MD5_Hash, SHA256_Hash, Bcrypt_Hash = hashing(user_input)
 
 #Run File Write helper function to write the hashes to unique files
     print("\n The Hashes of the password will now be saved to a file!")
     md5_file, sha_file, bcrypt_file = File_Write(MD5_Hash,SHA256_Hash,Bcrypt_Hash)
 
-    #Loads in Word List for Dictionary Attack
-    wordlist = "/Users/jakelyon/Desktop/rockyou.txt"
-
-    #Runs various helper fuctions to run JtR sessions for MD5,SHA-256, and Bcrypt and reports backs the results.
-
-    md5_time_WL= Run_JtR_wordlist(md5_file, "raw-md5", wordlist,run_time)
-    JtR_results(md5_file,"raw-md5",md5_time_WL)
-
-    clear_john_pot()
-
-    md5_time_I= Run_JtR_Incremental(md5_file,"raw-md5",run_time)
-    JtR_results(md5_file,"raw-md5",md5_time_I)
 
 
-    sha256_time_WL = Run_JtR_wordlist(sha_file, "raw-sha256", wordlist,run_time)
-    JtR_results(sha_file,"raw-sha256",sha256_time_WL)
-
-    clear_john_pot()
-
-    sha256_time_I = Run_JtR_Incremental(sha_file, "raw-sha256",run_time)
-    JtR_results(sha_file,"raw-sha256",sha256_time_I)
-
-    bcrypt_time_WL = Run_JtR_wordlist(bcrypt_file, "bcrypt", wordlist,run_time)
-    JtR_results(bcrypt_file,"bcrypt",bcrypt_time_WL)
-
-    clear_john_pot()
-
-    bcrypt_time_I = Run_JtR_Incremental(bcrypt_file, "bcrypt",run_time)
-    JtR_results(bcrypt_file,"bcrypt",bcrypt_time_I)
-
-    clear_john_pot()
+    run_all_attacks(md5_file, "raw-md5", wordlist, run_time)
+    run_all_attacks(sha_file, "raw-sha256", wordlist, run_time)
+    run_all_attacks(bcrypt_file, "bcrypt", wordlist, run_time)
 
 
     for attack_type, metrics in performance_metrics.items():
         print(f"{attack_type}: {metrics['g_s']} g/s, {metrics['p_s']} p/s, {metrics['c_s']} c/s")
 
     plot_metrics()
+
+
+    plot_summary_table()
 if __name__ == "__main__":
     main()
