@@ -25,7 +25,9 @@ A Python-based tool that hashes a user-provided password using **MD5**, **SHA-25
 
 ## Project Structure
 password_cracker/
+
 ├── HCTool.py 
+
 ├── plotting.py           
 ├── core.py                   
 ├── metrics.py               
