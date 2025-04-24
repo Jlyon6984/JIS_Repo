@@ -18,16 +18,44 @@ A Python-based tool that hashes a user-provided password using **MD5**, **SHA-25
 - Visualizes results using `matplotlib`:
   - Bar charts for performance
   - Summary table of attempts
+  - allows for user input of password
+  - allows for user set timeouts
 
 ---
 
 ## Project Structure
 password_cracker/
-├── main.py                   # Main script to run the tool
-├── plotting.py               # Handles creation of graphs and table
-├── core.py                   # Runs JtR, performs hashing, 
-├── metrics.py                # Parses and normalizesperformance metrics from JtR output
-├── wordlist.txt              # Wordlist used for dictionary attacks
-├── README.md                 # You're here!
+├── HCTool.py 
+├── plotting.py           
+├── core.py                   
+├── metrics.py               
+├── wordlist.txt             
+├── README.md               
+
+
+##Requirements 
+- Python 3.8+
+- [John the Ripper](https://www.openwall.com/john/)
+- Python Packages:
+- hashlib
+- bcrypt
+- subprocess
+- time
+- numpy
+- matplotlib
+- re
+
+##Usage
+Run tool by executing:
+python HCTool.py
+
+When prompted, enter in the password to test and the maximum cracking time, in seconds you would like to use.
+
+The tool will then:
+-Generate and write the hashes to seperate files.
+- Run JtR in both wordlist and incremental modes for each hash type.
+- Capture performance metrics and cracking status
+- Display visual charts and a summary table of the results.
+
 
 
