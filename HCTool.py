@@ -1,6 +1,6 @@
 #Necesary imports of other code modules
 from core import hash_passwords, write_hashes, run_john_attacks,get_valid_password,get_valid_time
-from metrics import init_metrics, performance_metrics, summary_results, initiate_metrics
+from metrics import performance_metrics, summary_results, initiate_metrics
 from plotting import plot_metrics, plot_summary_table
 
 #Driving Function for the software
