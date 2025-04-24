@@ -25,7 +25,6 @@ A Python-based tool that hashes a user-provided password using **MD5**, **SHA-25
 
 ## Project Structure
 password_cracker/
-
 ├── HCTool.py 
 ├── plotting.py           
 ├── core.py                   
@@ -34,7 +33,7 @@ password_cracker/
 ├── README.md               
 
 ---
-##Requirements 
+## Requirements 
 - Python 3.8+
 - [John the Ripper](https://www.openwall.com/john/)
 - Python Packages:
@@ -46,7 +45,7 @@ password_cracker/
 - matplotlib
 - re
 ---
-##Usage
+## Usage
 Run tool by executing:
 python HCTool.py
 
