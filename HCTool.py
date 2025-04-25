@@ -12,7 +12,7 @@ def main():
     #Running of helper fuction from metrics.py to initalize performance metrics dictionary.
     initiate_metrics()
 
-    #Assignment of variables that match the hash performed on user input, printing of these variable, and creation of files utilzing the write_hashes helper
+    #Assignment of variables that match the hash performed on user input, printing of these variable, and creation of files utilizing the write_hashes helper
     #function
     md5, sha256, bcrypt = hash_passwords(user_password)
     print("MD5 Hash: ",md5, "\n", "SHA-256 Hash: ",sha256, "\n", "BCRYPT Hash: ",bcrypt)
@@ -27,5 +27,6 @@ def main():
     plot_metrics()
     plot_summary_table()
 
+    print("\nThank you for using the HCTool!")
 if __name__ == "__main__":
     main()
