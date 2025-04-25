@@ -51,7 +51,7 @@ password_cracker/
 ## Usage
 For setup, insert the directory path of your wordlist in core.py in the WORDLIST variable.
 
-THen, run the tool by executing:
+Then, run the tool by executing:
 python HCTool.py
 
 When prompted, enter in the password to test and the maximum cracking time, in seconds you would like to use.
