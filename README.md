@@ -46,9 +46,12 @@ password_cracker/
 - numpy
 - matplotlib
 - re
+- User provided wordlist or use of rockyou.txt (https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt)
 ---
 ## Usage
-Run tool by executing:
+For setup, insert the directory path of your wordlist in core.py in the WORDLIST variable.
+
+THen, run the tool by executing:
 python HCTool.py
 
 When prompted, enter in the password to test and the maximum cracking time, in seconds you would like to use.
